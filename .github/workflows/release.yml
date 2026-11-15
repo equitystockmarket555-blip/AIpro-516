@@ -1,0 +1,1322 @@
+name: AIpro516 Apps
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/**'
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: SDK licenses accept karo
+        run: yes | sdkmanager --licenses > /dev/null 2>&1 || true
+
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: 8.4
+
+      - name: Project files banao
+        run: |
+          mkdir -p app/src/main/java/com/aipro/app app/src/main/res/values
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "AIPro"
+          include ':app'
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.1.4' apply false
+          }
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.aipro.app'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.aipro.menu"
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+              signingConfigs {
+                  debug {
+                      storeFile file('dbg.keystore')
+                      storePassword 'android'
+                      keyAlias 'androiddebugkey'
+                      keyPassword 'android'
+                  }
+              }
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <application
+                  android:label="AIpro@516"
+                  android:icon="@mipmap/ic_launcher"
+                  android:roundIcon="@mipmap/ic_launcher"
+                  android:usesCleartextTraffic="false"
+                  android:theme="@android:style/Theme.Material.Light.NoActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTask"
+                      android:configChanges="orientation|screenSize|keyboardHidden">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                      <intent-filter>
+                          <action android:name="android.intent.action.VIEW" />
+                          <category android:name="android.intent.category.DEFAULT" />
+                          <category android:name="android.intent.category.BROWSABLE" />
+                          <data android:scheme="aipro" android:host="open" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/aipro/app/MainActivity.java <<'EOF'
+          package com.aipro.app;
+
+          import android.app.Activity;
+          import android.app.AlertDialog;
+          import android.content.DialogInterface;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.content.pm.PackageInfo;
+          import android.content.pm.PackageManager;
+          import android.content.res.Configuration;
+          import android.graphics.Canvas;
+          import android.graphics.Color;
+          import android.graphics.Paint;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
+          import android.net.Uri;
+          import android.os.Bundle;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.webkit.CookieManager;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebResourceRequest;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.widget.Button;
+          import android.widget.FrameLayout;
+          import android.widget.HorizontalScrollView;
+          import android.widget.ImageView;
+          import android.widget.LinearLayout;
+          import android.widget.ProgressBar;
+          import android.widget.ScrollView;
+          import android.widget.TextView;
+          import android.widget.Toast;
+
+          import java.io.BufferedReader;
+          import java.io.InputStreamReader;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
+          import java.security.MessageDigest;
+          import java.util.Random;
+          import java.util.regex.Matcher;
+          import java.util.regex.Pattern;
+
+          public class MainActivity extends Activity {
+
+              // ===== BADE BUTTON KE NAAM (Home par) =====
+              private static final String[] NAMES = {
+                  "AIpro Stock_Paper_Trading@516",
+                  "AIpro Nifty_Option_Chain@516",
+                  "AIpro Stock_Option_Chain@516",
+                  "AIpro Commodity_Option_Chain@516"
+              };
+
+              // ===== UPAR HEADER KE CHHOTE NAAM =====
+              private static final String[] TABS = {
+                  "Paper Trading",
+                  "Nifty",
+                  "Stock Option",
+                  "Commodity"
+              };
+
+              // ===== LINKS =====
+              private static final String[] URLS = {
+                  "https://script.google.com/macros/s/AKfycbw4Fy8vXvM4-y8BAqas_mZZe8xpH6DAPjLg3oDTJvuI0SLcCScZANodAG-o7xLS1S3_jA/exec",
+                  "https://script.google.com/macros/s/AKfycbyLDl33-CkAx7nrV0K9zxLAIJw-_a0akxC7u3A5wNZ6yTvjNuBG71jngwklqrPCY8w1/exec",
+                  "https://script.google.com/macros/s/AKfycbzJaN5bIRkcDQh1hVHcSJjgCWJfFrBwS5M_rnv-ipc-5QTWoAQMwAdPSN7xfw2q1Tj4dQ/exec",
+                  "https://script.google.com/macros/s/AKfycbzSP2sloIQq3kPKTZewbfuJtHjmq6rASvoTRHviXiKdh4dZubLSEyLrKPqns9DHJByb/exec"
+              };
+
+              private static final int[] COLORS = {0xFF1B7F4C, 0xFF1F5FA8, 0xFFB8860B, 0xFF8E3B9B};
+
+              // ===== HOME KE THEME (naam, background ke rang, chip ka rang) =====
+              private static final String[] THEME_NAMES = {
+                  "\uD83C\uDF3F Classic",
+                  "\uD83D\uDC02 Bull Run",
+                  "\uD83D\uDC3B Bear Fall",
+                  "\u2694\uFE0F Bull vs Bear",
+                  "\uD83C\uDF03 Night",
+                  "\uD83E\uDD47 Gold"
+              };
+              private static final int[][] THEME_GRAD = {
+                  {0xFF14452E, 0xFF0B1F17},
+                  {0xFF0F5A34, 0xFF04150D},
+                  {0xFF6B1414, 0xFF190606},
+                  {0xFF173A2A, 0xFF0A0F14},
+                  {0xFF16246A, 0xFF070B1C},
+                  {0xFF5A4208, 0xFF120D02}
+              };
+              private static final int[] THEME_ACCENT = {0xFF3DDC84, 0xFF3DDC84, 0xFFFF5C5C, 0xFFF2C94C, 0xFF4DA3FF, 0xFFF2C94C};
+
+              // ===== NAYE VERSION KI JAANCH =====
+              private static final String HUB_URL = "https://equitystockmarket555-blip.github.io/AIpro-516/";
+              private static final String APK_URL = "https://github.com/equitystockmarket555-blip/AIpro-516/releases/latest/download/AIpro516.apk";
+              private static final String SIG_OK = "94:36:70:EB";
+              private static final String VERSION_URL = "https://github.com/equitystockmarket555-blip/AIpro-516/releases/latest/download/version.json";
+
+              private final WebView[] webs = new WebView[4];
+              private final TextView[] tabViews = new TextView[5];   // 0 = Home, 1..4 = websites
+              private FrameLayout content;
+              private FrameLayout home;
+              private ProgressBar bar;
+              private int cur = -1;                                  // -1 = Home, 0..3 = website
+              private boolean dark;
+              private int bgColor, titleColor, discColor, mutedColor, lineColor, headerColor;
+              private View themeBg, shade;
+              private ImageView bgPic;
+              private CandleView candles;
+              private final TextView[] themeChips = new TextView[6];
+
+              private int dp(int v) {
+                  return (int) (v * getResources().getDisplayMetrics().density);
+              }
+
+              @Override
+              protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT;
+                  final int WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
+
+                  dark = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+                          == Configuration.UI_MODE_NIGHT_YES;
+                  bgColor = dark ? 0xFF0B1F17 : 0xFFF2F6F3;
+                  titleColor = dark ? Color.WHITE : 0xFF0B1F17;
+                  discColor = dark ? 0xFFF2C94C : 0xFF8A5A00;
+                  mutedColor = dark ? 0xFFA9C2B4 : 0xFF51655A;
+                  lineColor = dark ? 0x55FFFFFF : 0x440B1F17;
+                  headerColor = dark ? 0xFF0F2A1E : 0xFFE3EBE6;
+
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setBackgroundColor(bgColor);
+
+                  // ---- upar header: Home + 4 website tab ----
+                  HorizontalScrollView hs = new HorizontalScrollView(this);
+                  hs.setBackgroundColor(headerColor);
+                  hs.setHorizontalScrollBarEnabled(false);
+                  LinearLayout row = new LinearLayout(this);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  row.setPadding(dp(8), dp(8), dp(8), dp(8));
+                  for (int i = 0; i < 5; i++) {
+                      final int idx = i - 1;
+                      TextView t = new TextView(this);
+                      t.setText(i == 0 ? "\uD83C\uDFE0 Home" : TABS[i - 1]);
+                      t.setTextSize(13);
+                      t.setTypeface(Typeface.DEFAULT_BOLD);
+                      t.setGravity(Gravity.CENTER);
+                      t.setPadding(dp(14), dp(8), dp(14), dp(8));
+                      t.setOnClickListener(new View.OnClickListener() {
+                          @Override
+                          public void onClick(View v) {
+                              select(idx);
+                          }
+                      });
+                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(WRAP, WRAP);
+                      lp.rightMargin = dp(6);
+                      row.addView(t, lp);
+                      tabViews[i] = t;
+                  }
+                  hs.addView(row, new ViewGroup.LayoutParams(WRAP, WRAP));
+                  LinearLayout headRow = new LinearLayout(this);
+                  headRow.setOrientation(LinearLayout.HORIZONTAL);
+                  headRow.setBackgroundColor(headerColor);
+                  headRow.setGravity(Gravity.CENTER_VERTICAL);
+                  headRow.addView(hs, new LinearLayout.LayoutParams(0, WRAP, 1f));
+                  TextView upBtn = new TextView(this);
+                  upBtn.setText("\u2B06 Update");
+                  upBtn.setTextSize(12);
+                  upBtn.setTypeface(Typeface.DEFAULT_BOLD);
+                  upBtn.setTextColor(0xFF1A1400);
+                  upBtn.setGravity(Gravity.CENTER);
+                  upBtn.setPadding(dp(12), dp(8), dp(12), dp(8));
+                  GradientDrawable upBg = new GradientDrawable();
+                  upBg.setCornerRadius(dp(18));
+                  upBg.setColor(0xFFF2C94C);
+                  upBtn.setBackground(upBg);
+                  upBtn.setOnClickListener(new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          manualUpdateCheck();
+                      }
+                  });
+                  LinearLayout.LayoutParams ubp = new LinearLayout.LayoutParams(WRAP, WRAP);
+                  ubp.rightMargin = dp(8);
+                  headRow.addView(upBtn, ubp);
+                  root.addView(headRow, new LinearLayout.LayoutParams(MATCH, WRAP));
+
+                  bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+                  bar.setVisibility(View.GONE);
+                  root.addView(bar, new LinearLayout.LayoutParams(MATCH, dp(3)));
+
+                  content = new FrameLayout(this);
+                  root.addView(content, new LinearLayout.LayoutParams(MATCH, 0, 1f));
+
+                  buildHome();
+                  content.addView(home, new FrameLayout.LayoutParams(MATCH, MATCH));
+
+                  setContentView(root);
+                  select(-1);
+                  handleIntent(getIntent());
+              }
+
+              // ---- Home: logo + 4 bade button + disclaimer ----
+              private void buildHome() {
+                  final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT;
+                  final int WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
+
+                  home = new FrameLayout(this);
+                  themeBg = new View(this);
+                  home.addView(themeBg, new FrameLayout.LayoutParams(MATCH, MATCH));
+                  bgPic = new ImageView(this);
+                  bgPic.setImageResource(R.drawable.bg_home);
+                  bgPic.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                  home.addView(bgPic, new FrameLayout.LayoutParams(MATCH, MATCH));
+                  candles = new CandleView(this);
+                  home.addView(candles, new FrameLayout.LayoutParams(MATCH, MATCH));
+                  shade = new View(this);
+                  shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0x26050A0E, 0x73050A0E, 0xD1050A0E}));
+                  home.addView(shade, new FrameLayout.LayoutParams(MATCH, MATCH));
+                  ScrollView sv = new ScrollView(this);
+                  sv.setFillViewport(true);
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setGravity(Gravity.CENTER);
+                  col.setPadding(dp(24), dp(24), dp(24), dp(32));
+
+                  ImageView logo = new ImageView(this);
+                  logo.setImageResource(R.mipmap.ic_launcher);
+                  col.addView(logo, new LinearLayout.LayoutParams(dp(120), dp(120)));
+
+                  TextView title = new TextView(this);
+                  title.setText("AIpro@516");
+                  title.setTextColor(Color.WHITE);
+                  title.setTextSize(26);
+                  title.setTypeface(Typeface.DEFAULT_BOLD);
+                  title.setGravity(Gravity.CENTER);
+                  LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(WRAP, WRAP);
+                  tp.topMargin = dp(10);
+                  tp.bottomMargin = dp(16);
+                  col.addView(title, tp);
+
+                  HorizontalScrollView chipScroll = new HorizontalScrollView(this);
+                  chipScroll.setHorizontalScrollBarEnabled(false);
+                  LinearLayout chipRow = new LinearLayout(this);
+                  chipRow.setOrientation(LinearLayout.HORIZONTAL);
+                  for (int k = 0; k < THEME_NAMES.length; k++) {
+                      final int ti = k;
+                      TextView chip = new TextView(this);
+                      chip.setText(THEME_NAMES[k]);
+                      chip.setTextColor(Color.WHITE);
+                      chip.setTextSize(13);
+                      chip.setGravity(Gravity.CENTER);
+                      chip.setPadding(dp(14), dp(8), dp(14), dp(8));
+                      chip.setOnClickListener(new View.OnClickListener() {
+                          @Override
+                          public void onClick(View v) {
+                              applyTheme(ti);
+                          }
+                      });
+                      LinearLayout.LayoutParams chp = new LinearLayout.LayoutParams(WRAP, WRAP);
+                      chp.rightMargin = dp(8);
+                      chipRow.addView(chip, chp);
+                      themeChips[k] = chip;
+                  }
+                  chipScroll.addView(chipRow, new ViewGroup.LayoutParams(WRAP, WRAP));
+                  LinearLayout.LayoutParams csp = new LinearLayout.LayoutParams(MATCH, WRAP);
+                  csp.bottomMargin = dp(4);
+                  col.addView(chipScroll, csp);
+
+                  for (int i = 0; i < NAMES.length; i++) {
+                      final int idx = i;
+                      Button btn = new Button(this);
+                      btn.setText(NAMES[i]);
+                      btn.setAllCaps(false);
+                      btn.setTextColor(Color.WHITE);
+                      btn.setTextSize(16);
+                      btn.setTypeface(Typeface.DEFAULT_BOLD);
+                      GradientDrawable g = new GradientDrawable();
+                      g.setColor(COLORS[i]);
+                      g.setCornerRadius(dp(16));
+                      btn.setBackground(g);
+                      btn.setOnClickListener(new View.OnClickListener() {
+                          @Override
+                          public void onClick(View v) {
+                              select(idx);
+                          }
+                      });
+                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(MATCH, dp(64));
+                      lp.topMargin = dp(12);
+                      col.addView(btn, lp);
+                  }
+
+                  TextView disc = new TextView(this);
+                  disc.setText("\u26A0\uFE0F DISCLAIMER: Self-developed technical tool. Not SEBI registered. Signals are educational scores only. Trade at your own risk.");
+                  disc.setTextColor(0xFFF2C94C);
+                  disc.setTextSize(12);
+                  disc.setTypeface(Typeface.DEFAULT_BOLD);
+                  disc.setGravity(Gravity.CENTER);
+                  LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(MATCH, WRAP);
+                  dlp.topMargin = dp(24);
+                  col.addView(disc, dlp);
+
+                  sv.addView(col, new ViewGroup.LayoutParams(MATCH, WRAP));
+                  home.addView(sv, new FrameLayout.LayoutParams(MATCH, MATCH));
+                  int saved = getSharedPreferences("aipro_theme_prefs", MODE_PRIVATE).getInt("theme", 3);
+                  if (saved < 0 || saved >= THEME_NAMES.length) {
+                      saved = 3;
+                  }
+                  applyTheme(saved);
+              }
+
+              // ---- Home ka theme badalna ----
+              private void applyTheme(int i) {
+                  GradientDrawable gd = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, THEME_GRAD[i]);
+                  themeBg.setBackground(gd);
+                  boolean photo = (i == 3);
+                  bgPic.setVisibility(photo ? View.VISIBLE : View.GONE);
+                  shade.setVisibility(photo ? View.VISIBLE : View.GONE);
+                  candles.setVisibility(photo ? View.GONE : View.VISIBLE);
+                  candles.setTheme(i);
+                  for (int k = 0; k < themeChips.length; k++) {
+                      GradientDrawable cg = new GradientDrawable();
+                      cg.setCornerRadius(dp(18));
+                      cg.setColor(0x33FFFFFF);
+                      if (k == i) {
+                          cg.setStroke(dp(2), THEME_ACCENT[i]);
+                      } else {
+                          cg.setStroke(dp(1), 0x44FFFFFF);
+                      }
+                      themeChips[k].setBackground(cg);
+                      themeChips[k].setTypeface(k == i ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
+                  }
+                  getSharedPreferences("aipro_theme_prefs", MODE_PRIVATE).edit().putInt("theme", i).apply();
+              }
+
+              // ---- Home ke background ki candlestick ----
+              private static class CandleView extends View {
+                  private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  private int theme = 0;
+
+                  CandleView(Context c) {
+                      super(c);
+                  }
+
+                  void setTheme(int t) {
+                      theme = t;
+                      invalidate();
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas cv) {
+                      int w = getWidth();
+                      int h = getHeight();
+                      if (w == 0 || h == 0) {
+                          return;
+                      }
+                      int n = 26;
+                      float cw = (float) w / n;
+                      float drift = theme == 1 ? 0.15f : (theme == 2 ? -0.15f : 0.01f);
+                      Random r = new Random(7 + theme);
+                      float[] o = new float[n];
+                      float[] c = new float[n];
+                      float[] hi = new float[n];
+                      float[] lo = new float[n];
+                      float pr = 0f;
+                      float mn = 1e9f;
+                      float mx = -1e9f;
+                      for (int i = 0; i < n; i++) {
+                          o[i] = pr;
+                          c[i] = pr + (r.nextFloat() - 0.5f) + drift;
+                          hi[i] = Math.max(o[i], c[i]) + r.nextFloat() * 0.4f;
+                          lo[i] = Math.min(o[i], c[i]) - r.nextFloat() * 0.4f;
+                          pr = c[i];
+                          mn = Math.min(mn, lo[i]);
+                          mx = Math.max(mx, hi[i]);
+                      }
+                      float top = h * 0.40f;
+                      float bottom = h * 0.98f;
+                      float k = (bottom - top) / (mx - mn);
+                      int upCol = 0x5522C55E;
+                      int dnCol = 0x55EF4444;
+                      if (theme == 4) {
+                          upCol = 0x554DA3FF;
+                          dnCol = 0x559B7BFF;
+                      } else if (theme == 5) {
+                          upCol = 0x55F2C94C;
+                          dnCol = 0x55B8860B;
+                      }
+                      p.setStrokeWidth(2f);
+                      for (int i = 0; i < n; i++) {
+                          boolean up = c[i] >= o[i];
+                          p.setColor(up ? upCol : dnCol);
+                          float x = i * cw + cw / 2f;
+                          float yHi = bottom - (hi[i] - mn) * k;
+                          float yLo = bottom - (lo[i] - mn) * k;
+                          float yO = bottom - (o[i] - mn) * k;
+                          float yC = bottom - (c[i] - mn) * k;
+                          cv.drawLine(x, yHi, x, yLo, p);
+                          cv.drawRect(i * cw + cw * 0.2f, Math.min(yO, yC), i * cw + cw * 0.8f, Math.max(Math.max(yO, yC), Math.min(yO, yC) + 3f), p);
+                      }
+                  }
+              }
+
+              // ---- ek website ka WebView (pehli baar dabane par banta hai, phir band nahi hota) ----
+              private WebView createWeb(final int i) {
+                  WebView w = new WebView(this);
+                  w.setBackgroundColor(bgColor);
+
+                  WebSettings s = w.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  s.setDatabaseEnabled(true);
+                  s.setLoadWithOverviewMode(true);
+                  s.setUseWideViewPort(true);
+                  s.setSupportZoom(false);
+                  s.setMediaPlaybackRequiresUserGesture(false);
+                  CookieManager cm = CookieManager.getInstance();
+                  cm.setAcceptCookie(true);
+                  cm.setAcceptThirdPartyCookies(w, true);
+
+                  w.setWebChromeClient(new WebChromeClient() {
+                      @Override
+                      public void onProgressChanged(WebView v, int p) {
+                          if (cur == i) {
+                              bar.setProgress(p);
+                              bar.setVisibility(p >= 100 ? View.GONE : View.VISIBLE);
+                          }
+                      }
+                  });
+                  w.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
+                          Uri u = r.getUrl();
+                          String sc = u.getScheme();
+                          if (sc != null && !sc.equals("http") && !sc.equals("https")) {
+                              try {
+                                  startActivity(new Intent(Intent.ACTION_VIEW, u));
+                              } catch (Exception e) {
+                                  // koi app nahi mili
+                              }
+                              return true;
+                          }
+                          return false;
+                      }
+                  });
+
+                  content.addView(w, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                  w.loadUrl(URLS[i]);
+                  webs[i] = w;
+                  return w;
+              }
+
+              // i = -1 Home, 0..3 website
+              private void select(int i) {
+                  cur = i;
+                  home.setVisibility(i < 0 ? View.VISIBLE : View.GONE);
+                  for (int k = 0; k < webs.length; k++) {
+                      if (webs[k] != null) {
+                          webs[k].setVisibility(k == i ? View.VISIBLE : View.GONE);
+                      }
+                  }
+                  if (i >= 0) {
+                      if (webs[i] == null) {
+                          createWeb(i);
+                      }
+                      webs[i].setVisibility(View.VISIBLE);
+                  }
+                  bar.setVisibility(View.GONE);
+                  refreshTabs();
+              }
+
+              private void refreshTabs() {
+                  for (int i = 0; i < tabViews.length; i++) {
+                      boolean on = (i - 1) == cur;
+                      int col = (i == 0) ? (dark ? 0xFF2E5A44 : 0xFF2E7D57) : COLORS[i - 1];
+                      GradientDrawable g = new GradientDrawable();
+                      g.setCornerRadius(dp(18));
+                      if (on) {
+                          g.setColor(col);
+                          tabViews[i].setTextColor(Color.WHITE);
+                      } else {
+                          g.setColor(Color.TRANSPARENT);
+                          g.setStroke(dp(1), lineColor);
+                          tabViews[i].setTextColor(mutedColor);
+                      }
+                      tabViews[i].setBackground(g);
+                  }
+              }
+
+              // hub se aaya link: aipro://open?site=0..3
+              private void handleIntent(Intent in) {
+                  if (in == null) return;
+                  Uri d = in.getData();
+                  if (d == null || !"aipro".equals(d.getScheme())) return;
+                  String s = d.getQueryParameter("site");
+                  try {
+                      int n = Integer.parseInt(s);
+                      if (n >= 0 && n < URLS.length) {
+                          select(n);
+                      }
+                  } catch (Exception e) {
+                      // galat link, ignore
+                  }
+              }
+
+              // ---- Update button: abhi naya version dhoondho ----
+              private void manualUpdateCheck() {
+                  Toast.makeText(this, "Naya version dhoondh raha hu...", Toast.LENGTH_SHORT).show();
+                  new Thread(new Runnable() {
+                      @Override
+                      public void run() {
+                          int remote = -1;
+                          try {
+                              HttpURLConnection c = (HttpURLConnection) new URL(VERSION_URL).openConnection();
+                              c.setConnectTimeout(8000);
+                              c.setReadTimeout(8000);
+                              BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream()));
+                              StringBuilder sb = new StringBuilder();
+                              String line;
+                              while ((line = r.readLine()) != null) {
+                                  sb.append(line);
+                              }
+                              r.close();
+                              Matcher m = Pattern.compile("\"v\"\\s*:\\s*(\\d+)").matcher(sb.toString());
+                              if (m.find()) {
+                                  remote = Integer.parseInt(m.group(1));
+                              }
+                          } catch (Exception e) {
+                              remote = -1;
+                          }
+                          final int rv = remote;
+                          runOnUiThread(new Runnable() {
+                              @Override
+                              public void run() {
+                                  showManualResult(rv);
+                              }
+                          });
+                      }
+                  }).start();
+              }
+
+              private void showManualResult(int rv) {
+                  if (isFinishing()) return;
+                  if (rv < 0) {
+                      Toast.makeText(this, "Jaanch nahi ho payi. Internet check karo aur dobara dabao.", Toast.LENGTH_LONG).show();
+                      return;
+                  }
+                  int mine = myVersion();
+                  if (rv <= mine) {
+                      Toast.makeText(this, "Aap latest version par ho (v" + mine + ")", Toast.LENGTH_LONG).show();
+                      return;
+                  }
+                  new AlertDialog.Builder(this)
+                          .setTitle("Naya version mila")
+                          .setMessage("AIpro@516 ka naya version (v" + rv + ") taiyar hai. 'Download karo' dabao, APK download hoga. Use kholkar Install dabao, purani app apne aap update ho jaayegi." + verLine(rv))
+                          .setCancelable(true)
+                          .setPositiveButton("Download karo", new DialogInterface.OnClickListener() {
+                              @Override
+                              public void onClick(DialogInterface d, int which) {
+                                  try {
+                                      startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(APK_URL)));
+                                  } catch (Exception e) {
+                                      // browser nahi mila
+                                  }
+                              }
+                          })
+                          .setNegativeButton("Baad me", null)
+                          .show();
+              }
+
+              // ---- is app ka version number (build ke waqt lagta hai) ----
+              private int myVersion() {
+                  try {
+                      PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0);
+                      return Integer.parseInt(pi.versionName.trim());
+                  } catch (Exception e) {
+                      return 0;
+                  }
+              }
+
+              // ---- is phone wali app ki signature (pehle 4 byte) ----
+              private String sigShort() {
+                  try {
+                      PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), PackageManager.GET_SIGNATURES);
+                      byte[] d = MessageDigest.getInstance("SHA-256").digest(pi.signatures[0].toByteArray());
+                      StringBuilder sb = new StringBuilder();
+                      for (int i = 0; i < 4; i++) {
+                          if (i > 0) {
+                              sb.append(':');
+                          }
+                          sb.append(String.format("%02X", d[i] & 0xFF));
+                      }
+                      return sb.toString();
+                  } catch (Exception e) {
+                      return "?";
+                  }
+              }
+
+              // update pop-up me dikhne wali jaankari: kaun sa version aur signature
+              private String verLine(int rv) {
+                  String sig = sigShort();
+                  String t = "\n\nAapke phone me: v" + myVersion() + "\nNaya: v" + rv + "\nSignature: " + sig;
+                  if (!SIG_OK.equals(sig)) {
+                      t += "\n\n\u26A0 Is phone ki app ki signature alag hai, isliye seedha update nahi ho sakta. Ek baar app uninstall karke naya install karo. Uske baad update seedhe hote rahenge.";
+                  }
+                  return t;
+              }
+
+              // ---- naye version ki jaanch (6 ghante me ek baar, chupchaap) ----
+              private void checkUpdate() {
+                  final SharedPreferences sp = getSharedPreferences("aipro_update", MODE_PRIVATE);
+                  long now = System.currentTimeMillis();
+                  if (now - sp.getLong("checked", 0L) < 6L * 3600L * 1000L) return;
+                  sp.edit().putLong("checked", now).apply();
+                  new Thread(new Runnable() {
+                      @Override
+                      public void run() {
+                          int remote = 0;
+                          try {
+                              HttpURLConnection c = (HttpURLConnection) new URL(VERSION_URL).openConnection();
+                              c.setConnectTimeout(8000);
+                              c.setReadTimeout(8000);
+                              BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream()));
+                              StringBuilder sb = new StringBuilder();
+                              String line;
+                              while ((line = r.readLine()) != null) {
+                                  sb.append(line);
+                              }
+                              r.close();
+                              Matcher m = Pattern.compile("\"v\"\\s*:\\s*(\\d+)").matcher(sb.toString());
+                              if (m.find()) {
+                                  remote = Integer.parseInt(m.group(1));
+                              }
+                          } catch (Exception e) {
+                              return;
+                          }
+                          final int rv = remote;
+                          runOnUiThread(new Runnable() {
+                              @Override
+                              public void run() {
+                                  showUpdate(rv);
+                              }
+                          });
+                      }
+                  }).start();
+              }
+
+              // ---- naya version mila to POP-UP (ek version ka pop-up din me ek hi baar) ----
+              private void showUpdate(int rv) {
+                  if (isFinishing()) return;
+                  if (rv <= myVersion()) return;
+                  SharedPreferences sp = getSharedPreferences("aipro_update", MODE_PRIVATE);
+                  long now = System.currentTimeMillis();
+                  if (sp.getInt("shown", 0) == rv && now - sp.getLong("shownAt", 0L) < 24L * 3600L * 1000L) return;
+                  sp.edit().putInt("shown", rv).putLong("shownAt", now).apply();
+                  new AlertDialog.Builder(this)
+                          .setTitle("Naya version aaya hai")
+                          .setMessage("AIpro@516 ka naya version taiyar hai. 'Update karo' dabao, APK download hoga, use kholkar Install dabao, purani app apne aap update ho jaayegi." + verLine(rv))
+                          .setCancelable(true)
+                          .setPositiveButton("Update karo", new DialogInterface.OnClickListener() {
+                              @Override
+                              public void onClick(DialogInterface d, int which) {
+                                  try {
+                                      startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(APK_URL)));
+                                  } catch (Exception e) {
+                                      // browser nahi mila
+                                  }
+                              }
+                          })
+                          .setNegativeButton("Baad me", null)
+                          .show();
+              }
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  checkUpdate();
+              }
+
+              @Override
+              protected void onNewIntent(Intent in) {
+                  super.onNewIntent(in);
+                  setIntent(in);
+                  handleIntent(in);
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (cur >= 0 && webs[cur] != null && webs[cur].canGoBack()) {
+                      webs[cur].goBack();
+                  } else if (cur >= 0) {
+                      select(-1);
+                  } else {
+                      super.onBackPressed();
+                  }
+              }
+          }
+          EOF
+
+      - name: Version number lagao
+        run: |
+          N=$(( ${{ github.run_number }} + 1000 ))
+          sed -i "s/versionCode 1/versionCode $N/; s/versionName \"1.0\"/versionName \"$N\"/" app/build.gradle
+          grep -n "versionCode\|versionName" app/build.gradle
+
+      - name: Logo banao
+        run: |
+          pip install pillow
+          cat > mkicon.py <<'EOF'
+          from PIL import Image
+          import os
+          src = Image.open("icon.png").convert("RGBA")
+          for name, px in [("mdpi", 48), ("hdpi", 72), ("xhdpi", 96), ("xxhdpi", 144), ("xxxhdpi", 192)]:
+              p = os.path.join("app/src/main/res", "mipmap-" + name)
+              os.makedirs(p, exist_ok=True)
+              src.resize((px, px), Image.LANCZOS).save(os.path.join(p, "ic_launcher.png"))
+          EOF
+          python3 mkicon.py
+
+      - name: Home background lagao
+        run: |
+          mkdir -p app/src/main/res/drawable-nodpi
+          python3 - <<'PYEOF'
+          import re, base64
+          from PIL import Image
+          out = "app/src/main/res/drawable-nodpi/bg_home.jpg"
+          ok = False
+          try:
+              s = open("index.html", encoding="utf-8").read()
+              m = re.search(r"data:image/jpeg;base64,([A-Za-z0-9+/=]+)", s)
+              if m:
+                  open(out, "wb").write(base64.b64decode(m.group(1)))
+                  ok = True
+          except Exception as e:
+              print("photo nahi mili:", e)
+          if not ok:
+              Image.new("RGB", (720, 1280), (11, 31, 23)).save(out, "JPEG")
+              print("fallback dark background use hua")
+          PYEOF
+
+      - name: Fixed signing key lagao
+        run: |
+          mkdir -p ~/.android
+          echo "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" | base64 -d > ~/.android/debug.keystore
+          cp ~/.android/debug.keystore app/dbg.keystore
+
+      - name: APK build karo
+        run: gradle assembleDebug --no-daemon
+
+      - name: APK ka naam badlo
+        run: |
+          mkdir -p out
+          cp app/build/outputs/apk/debug/app-debug.apk out/AIpro516.apk
+
+      - name: Signature check (log me dikhega)
+        run: |
+          keytool -printcert -jarfile out/AIpro516.apk | grep -i "owner\|SHA256" || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: out
+          if-no-files-found: error
+
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: Windows
+            args: --win nsis
+          - os: macos-latest
+            name: Mac
+            args: --mac dmg
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: App files banao
+        shell: bash
+        run: |
+          mkdir -p desk/build
+          cp icon.png desk/build/icon.png
+          cp icon.png desk/logo.png
+          cp index.html desk/index.html
+
+          cat > desk/package.json <<'EOF'
+          {
+            "name": "aipro516",
+            "productName": "AIpro516",
+            "version": "1.0.0",
+            "description": "AIpro@516",
+            "main": "main.js",
+            "author": "AIpro",
+            "devDependencies": {
+              "electron": "33.2.1",
+              "electron-builder": "25.1.8"
+            },
+            "build": {
+              "appId": "com.aipro.desktop",
+              "files": ["main.js", "preload.js", "toolbar.html", "index.html", "logo.png", "package.json"],
+              "directories": { "output": "dist", "buildResources": "build" },
+              "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "icon": "build/icon.png" },
+              "nsis": { "oneClick": true, "perMachine": false, "shortcutName": "AIpro@516", "artifactName": "AIpro516-Setup.${ext}" },
+              "mac": { "target": [{ "target": "dmg", "arch": ["universal"] }], "icon": "build/icon.png", "category": "public.app-category.finance", "extendInfo": { "CFBundleDisplayName": "AIpro@516" } },
+              "dmg": { "artifactName": "AIpro516.${ext}" }
+            }
+          }
+          EOF
+
+          cat > desk/main.js <<'EOF'
+          const { app, BrowserWindow, WebContentsView, Menu, shell, session, ipcMain, dialog, net } = require('electron');
+          const path = require('path');
+          const fs = require('fs');
+
+          // Hub page = Home tab. Net na ho to andar ka copy khulega.
+          const HUB_URL = 'https://equitystockmarket555-blip.github.io/AIpro-516/';
+          const HUB = HUB_URL + '?app=1';
+          const PART = 'persist:aipro';
+          const BAR_H = 52;
+          const VERSION_URL = 'https://github.com/equitystockmarket555-blip/AIpro-516/releases/latest/download/version.json';
+          const DL_URL = 'https://github.com/equitystockmarket555-blip/AIpro-516/releases/latest/download/' + (process.platform === 'darwin' ? 'AIpro516.dmg' : 'AIpro516-Setup.exe');
+
+          const SITES = [
+            { name: 'Paper Trading', url: 'https://script.google.com/macros/s/AKfycbw4Fy8vXvM4-y8BAqas_mZZe8xpH6DAPjLg3oDTJvuI0SLcCScZANodAG-o7xLS1S3_jA/exec' },
+            { name: 'Nifty', url: 'https://script.google.com/macros/s/AKfycbyLDl33-CkAx7nrV0K9zxLAIJw-_a0akxC7u3A5wNZ6yTvjNuBG71jngwklqrPCY8w1/exec' },
+            { name: 'Stock Option', url: 'https://script.google.com/macros/s/AKfycbzJaN5bIRkcDQh1hVHcSJjgCWJfFrBwS5M_rnv-ipc-5QTWoAQMwAdPSN7xfw2q1Tj4dQ/exec' },
+            { name: 'Commodity', url: 'https://script.google.com/macros/s/AKfycbzSP2sloIQq3kPKTZewbfuJtHjmq6rASvoTRHviXiKdh4dZubLSEyLrKPqns9DHJByb/exec' }
+          ];
+
+          let win = null, bar = null, homeView = null;
+          const views = [null, null, null, null];
+          let cur = -1;   // -1 = Home, 0..3 = website
+
+          function siteIndex(u) {
+            for (let i = 0; i < SITES.length; i++) {
+              const base = SITES[i].url.split('/exec')[0];
+              if (String(u).indexOf(base) === 0) return i;
+            }
+            return -1;
+          }
+
+          function activeView() { return cur < 0 ? homeView : views[cur]; }
+          function wc() { const v = activeView(); return v ? v.webContents : null; }
+
+          function canBack(w) {
+            const h = w.navigationHistory;
+            return h ? h.canGoBack() : w.canGoBack();
+          }
+          function canFwd(w) {
+            const h = w.navigationHistory;
+            return h ? h.canGoForward() : w.canGoForward();
+          }
+          function goBack(w) { if (w.navigationHistory) w.navigationHistory.goBack(); else w.goBack(); }
+          function goFwd(w) { if (w.navigationHistory) w.navigationHistory.goForward(); else w.goForward(); }
+
+          function back() {
+            const w = wc();
+            if (w && canBack(w)) goBack(w);
+            else if (cur >= 0) select(-1);   // pichhla page nahi hai to Home par
+          }
+          function fwd() { const w = wc(); if (w && canFwd(w)) goFwd(w); }
+          function reload() { const w = wc(); if (w) w.reload(); }
+          function zoom(d) { const w = wc(); if (w) w.setZoomLevel(d === 0 ? 0 : w.getZoomLevel() + d); }
+
+
+          // ---- Naye version ki jaanch: naya mile to POP-UP (ek version ka pop-up din me ek hi baar) ----
+          function myVersion() { return parseInt(String(app.getVersion()).split('.').pop(), 10) || 0; }
+          function stateFile() { return path.join(app.getPath('userData'), 'update-state.json'); }
+          function readState() { try { return JSON.parse(fs.readFileSync(stateFile(), 'utf8')); } catch (e) { return {}; } }
+          function writeState(s) { try { fs.writeFileSync(stateFile(), JSON.stringify(s)); } catch (e) { } }
+
+          async function manualUpdate() {
+            if (!win) return;
+            let rv = -1;
+            try {
+              const res = await net.fetch(VERSION_URL);
+              if (res.ok) { const j = await res.json(); rv = Number(j && j.v) || -1; }
+            } catch (e) { rv = -1; }
+            if (rv < 0) {
+              dialog.showMessageBox(win, { type: 'warning', title: 'Update', message: 'Jaanch nahi ho payi', detail: 'Internet check karo aur dobara Update dabao.', buttons: ['Theek hai'] });
+              return;
+            }
+            if (rv <= myVersion()) {
+              dialog.showMessageBox(win, { type: 'info', title: 'Update', message: 'Aap latest version par ho', detail: 'Version: ' + myVersion(), buttons: ['Theek hai'] });
+              return;
+            }
+            const r = await dialog.showMessageBox(win, {
+              type: 'info',
+              title: 'Naya version',
+              message: 'AIpro@516 ka naya version (v' + rv + ') mila',
+              detail: "'Download karo' dabao, naya installer download hoga. Use chalao, purana app apne aap update ho jaayega.",
+              buttons: ['Download karo', 'Baad me'],
+              defaultId: 0,
+              cancelId: 1
+            });
+            if (r.response === 0) shell.openExternal(DL_URL);
+          }
+
+          async function checkUpdate() {
+            try {
+              const res = await net.fetch(VERSION_URL);
+              if (!res.ok) return;
+              const j = await res.json();
+              const rv = Number(j && j.v) || 0;
+              if (!win || rv <= myVersion()) return;
+              const st = readState();
+              const now = Date.now();
+              if (st.shown === rv && now - (st.at || 0) < 24 * 3600 * 1000) return;
+              writeState({ shown: rv, at: now });
+              const r = await dialog.showMessageBox(win, {
+                type: 'info',
+                title: 'Naya version',
+                message: 'AIpro@516 ka naya version aaya hai',
+                detail: "'Update karo' dabao. Naya installer download hoga, use chalao. Purana app apne aap update ho jaayega.",
+                buttons: ['Update karo', 'Baad me'],
+                defaultId: 0,
+                cancelId: 1
+              });
+              if (r.response === 0) shell.openExternal(DL_URL);
+            } catch (e) { /* net nahi hai, chup raho */ }
+          }
+
+          function layout() {
+            if (!win) return;
+            const s = win.getContentSize();
+            const w = s[0], h = s[1];
+            bar.setBounds({ x: 0, y: 0, width: w, height: BAR_H });
+            const b = { x: 0, y: BAR_H, width: w, height: Math.max(0, h - BAR_H) };
+            if (homeView) homeView.setBounds(b);
+            views.forEach(function (v) { if (v) v.setBounds(b); });
+          }
+
+          function prepare(view) {
+            const c = view.webContents;
+            // Google ko normal browser jaisa dikhao (Electron ka naam hata do)
+            c.setUserAgent(c.getUserAgent().replace(/\sElectron\/\S+/, '').replace(/\sAIpro\S*/i, ''));
+            c.setWindowOpenHandler(function (d) {
+              const u = d.url;
+              const i = siteIndex(u);
+              if (i >= 0) { select(i); }
+              else if (/^https:\/\/(script\.google\.com|[\w-]+\.googleusercontent\.com)\//.test(u)) { c.loadURL(u); }
+              else if (/^https?:\/\//.test(u)) { shell.openExternal(u); }
+              return { action: 'deny' };
+            });
+          }
+
+          function sitePrefs() {
+            return { partition: PART, devTools: false, contextIsolation: true, nodeIntegration: false, sandbox: true };
+          }
+
+          function createHome() {
+            homeView = new WebContentsView({ webPreferences: sitePrefs() });
+            win.contentView.addChildView(homeView);
+            prepare(homeView);
+            const c = homeView.webContents;
+            // Hub ke card dabane par naya page nahi, seedha us website ka tab khule
+            c.on('will-navigate', function (e, url) {
+              const i = siteIndex(url);
+              if (i >= 0) { e.preventDefault(); select(i); }
+            });
+            c.on('did-fail-load', function (e, code, desc, url, isMain) {
+              if (!isMain || code === -3) return;
+              if (String(url).indexOf(HUB_URL) === 0) c.loadFile(path.join(__dirname, 'index.html'), { query: { app: '1' } });
+            });
+            c.loadURL(HUB).catch(function () { });
+          }
+
+          function createSite(i) {
+            const v = new WebContentsView({ webPreferences: sitePrefs() });
+            win.contentView.addChildView(v);
+            prepare(v);
+            views[i] = v;
+            v.setBounds({ x: 0, y: BAR_H, width: win.getContentSize()[0], height: Math.max(0, win.getContentSize()[1] - BAR_H) });
+            v.webContents.loadURL(SITES[i].url).catch(function () { });
+            return v;
+          }
+
+          function select(i) {
+            if (!win) return;
+            cur = i;
+            if (i >= 0 && !views[i]) createSite(i);
+            homeView.setVisible(i < 0);
+            for (let k = 0; k < views.length; k++) {
+              if (views[k]) views[k].setVisible(k === i);
+            }
+            bar.webContents.send('tab:state', cur);
+            win.setTitle(i < 0 ? 'AIpro@516' : 'AIpro@516 - ' + SITES[i].name);
+            layout();
+          }
+
+          function createWindow() {
+            session.fromPartition(PART).setPermissionRequestHandler(function (w, perm, cb) {
+              cb(perm === 'notifications' || perm === 'fullscreen' || perm === 'clipboard-sanitized-write');
+            });
+
+            win = new BrowserWindow({
+              width: 1280, height: 820, minWidth: 420, minHeight: 520,
+              title: 'AIpro@516', backgroundColor: '#0b1f17', autoHideMenuBar: true,
+              icon: path.join(__dirname, 'logo.png')
+            });
+
+            bar = new WebContentsView({
+              webPreferences: { preload: path.join(__dirname, 'preload.js'), sandbox: true, contextIsolation: true, nodeIntegration: false, devTools: false }
+            });
+            win.contentView.addChildView(bar);
+            bar.webContents.loadFile(path.join(__dirname, 'toolbar.html'));
+            bar.webContents.on('did-finish-load', function () { bar.webContents.send('tab:state', cur); });
+            bar.webContents.on('will-navigate', function (e) { e.preventDefault(); });
+            bar.webContents.setWindowOpenHandler(function () { return { action: 'deny' }; });
+
+            createHome();
+
+            win.on('resize', layout);
+            win.on('maximize', layout);
+            win.on('unmaximize', layout);
+            win.on('enter-full-screen', layout);
+            win.on('leave-full-screen', layout);
+            win.on('app-command', function (e, cmd) {
+              if (cmd === 'browser-backward') back();
+              else if (cmd === 'browser-forward') fwd();
+            });
+            win.on('closed', function () { win = null; bar = null; homeView = null; });
+
+            select(-1);
+            setTimeout(checkUpdate, 6000);
+            setInterval(checkUpdate, 6 * 3600 * 1000);
+          }
+
+          ipcMain.on('tab:select', function (e, i) {
+            const n = Number(i);
+            if (n >= -1 && n < SITES.length) select(n);
+          });
+          ipcMain.on('tab:cmd', function (e, c) {
+            if (c === 'back') back();
+            else if (c === 'reload') reload();
+            else if (c === 'update') manualUpdate();
+          });
+
+          const gotLock = app.requestSingleInstanceLock();
+          if (!gotLock) {
+            app.quit();
+          } else {
+            app.on('second-instance', function () {
+              if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
+            });
+            app.whenReady().then(function () {
+              const tabItems = [{ label: 'Home (4 websites)', accelerator: 'CmdOrCtrl+Shift+H', click: function () { select(-1); } }];
+              SITES.forEach(function (s, i) {
+                tabItems.push({ label: s.name, accelerator: 'CmdOrCtrl+' + (i + 1), click: function () { select(i); } });
+              });
+              Menu.setApplicationMenu(Menu.buildFromTemplate([
+                ...(process.platform === 'darwin' ? [{ role: 'appMenu' }] : []),
+                { label: 'AIpro@516', submenu: tabItems.concat([
+                  { type: 'separator' },
+                  { label: 'Back', accelerator: 'Alt+Left', click: back },
+                  { label: 'Forward', accelerator: 'Alt+Right', click: fwd },
+                  { label: 'Reload', accelerator: 'F5', click: reload },
+                  { role: 'togglefullscreen' },
+                  { role: 'quit' }
+                ]) },
+                { label: 'Edit', submenu: [
+                  { label: 'Cut', accelerator: 'CmdOrCtrl+X', click: function () { const w = wc(); if (w) w.cut(); } },
+                  { label: 'Copy', accelerator: 'CmdOrCtrl+C', click: function () { const w = wc(); if (w) w.copy(); } },
+                  { label: 'Paste', accelerator: 'CmdOrCtrl+V', click: function () { const w = wc(); if (w) w.paste(); } },
+                  { label: 'Select All', accelerator: 'CmdOrCtrl+A', click: function () { const w = wc(); if (w) w.selectAll(); } }
+                ] },
+                { label: 'View', submenu: [
+                  { label: 'Zoom In', accelerator: 'CmdOrCtrl+Plus', click: function () { zoom(0.5); } },
+                  { label: 'Zoom Out', accelerator: 'CmdOrCtrl+-', click: function () { zoom(-0.5); } },
+                  { label: 'Actual size', accelerator: 'CmdOrCtrl+0', click: function () { zoom(0); } }
+                ] }
+              ]));
+              createWindow();
+              app.on('activate', function () { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+            });
+            app.on('window-all-closed', function () { app.quit(); });
+          }
+          EOF
+
+          cat > desk/preload.js <<'EOF'
+          const { contextBridge, ipcRenderer } = require('electron');
+
+          contextBridge.exposeInMainWorld('aipro', {
+            select: function (i) { ipcRenderer.send('tab:select', i); },
+            cmd: function (c) { ipcRenderer.send('tab:cmd', c); },
+            onState: function (fn) { ipcRenderer.on('tab:state', function (e, s) { fn(s); }); }
+          });
+          EOF
+
+          cat > desk/toolbar.html <<'EOF'
+          <!DOCTYPE html>
+          <html lang="hi">
+          <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <style>
+          :root{--bg:#e3ebe6;--text:#51655a;--line:rgba(11,31,23,.28)}
+          @media (prefers-color-scheme:dark){:root{--bg:#0f2a1e;--text:#a9c2b4;--line:rgba(255,255,255,.33)}}
+          *{box-sizing:border-box}
+          html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;user-select:none}
+          .bar{display:flex;align-items:center;gap:6px;height:100%;padding:0 10px;overflow-x:auto}
+          .bar::-webkit-scrollbar{display:none}
+          .tab{flex:none;border:1px solid var(--line);background:transparent;color:var(--text);border-radius:18px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+          .tab:hover{filter:brightness(1.15)}
+          .tab.on{color:#fff;border-color:transparent}
+          .sp{flex:1}
+          .ic{flex:none;border:0;background:transparent;color:var(--text);font-size:18px;cursor:pointer;padding:4px 10px;border-radius:8px}
+          .ic:hover{background:var(--line)}
+          .ic.up{font-size:13px;font-weight:700;color:#1a1400;background:#f2c94c;border-radius:18px;padding:7px 14px;margin-right:6px}
+          .ic.up:hover{filter:brightness(1.1);background:#f2c94c}
+          </style>
+          </head>
+          <body>
+          <div class="bar" id="bar"></div>
+          <script>
+          var LABELS = ['\uD83C\uDFE0 Home', 'Paper Trading', 'Nifty', 'Stock Option', 'Commodity'];
+          var COLORS = ['#2e7d57', '#1b7f4c', '#1f5fa8', '#b8860b', '#8e3b9b'];
+          var bar = document.getElementById('bar'), btns = [];
+          LABELS.forEach(function (l, i) {
+            var b = document.createElement('button');
+            b.className = 'tab'; b.textContent = l;
+            b.onclick = function () { window.aipro.select(i - 1); };
+            bar.appendChild(b); btns.push(b);
+          });
+          var sp = document.createElement('div'); sp.className = 'sp'; bar.appendChild(sp);
+          [['\u2B06 Update', 'update', 'Naya version dhoondo'], ['\u25C0', 'back', 'Back'], ['\u27F3', 'reload', 'Reload']].forEach(function (x) {
+            var b = document.createElement('button');
+            b.className = (x[1] === 'update') ? 'ic up' : 'ic'; b.textContent = x[0]; b.title = x[2];
+            b.onclick = function () { window.aipro.cmd(x[1]); };
+            bar.appendChild(b);
+          });
+          function paint(cur) {
+            btns.forEach(function (b, i) {
+              var on = (i - 1) === cur;
+              b.className = 'tab' + (on ? ' on' : '');
+              b.style.background = on ? COLORS[i] : 'transparent';
+            });
+          }
+          paint(-1);
+          window.aipro.onState(function (s) { paint(s); });
+          </script>
+          </body>
+          </html>
+          EOF
+
+      - name: Version number lagao
+        shell: bash
+        env:
+          RUN: ${{ github.run_number }}
+        run: |
+          node -e "const fs=require('fs');const f='desk/package.json';const p=JSON.parse(fs.readFileSync(f,'utf8'));p.version='1.0.'+(Number(process.env.RUN)+1000);fs.writeFileSync(f,JSON.stringify(p,null,2));"
+
+      - name: Installer banao
+        working-directory: desk
+        shell: bash
+        run: |
+          npm install
+          npx electron-builder ${{ matrix.args }} --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.name }}
+          path: |
+            desk/dist/*.exe
+            desk/dist/*.dmg
+          if-no-files-found: error
+
+  release:
+    needs: [android, desktop]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dl
+          merge-multiple: true
+
+      - name: Downloads me rakho
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          N=$(( ${{ github.run_number }} + 1000 ))
+          echo "{\"v\": $N}" > dl/version.json
+          cat dl/version.json
+          ls -R dl
+          if [ ! -f dl/AIpro516.apk ]; then
+            echo "Android APK nahi bani, isliye naya version publish nahi kiya. Purana release waisa hi hai."
+            exit 1
+          fi
+          gh release delete latest --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" || true
+          gh release create latest dl/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --latest \
+            --title "AIpro516 - Android, Windows and Mac apps" \
+            --notes "Version v$N | Android: AIpro516.apk | Windows: AIpro516-Setup.exe | Mac: AIpro516.dmg"
