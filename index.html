@@ -56,15 +56,15 @@ a.app:hover{border-color:var(--hl)}
 .app .ai{font-size:26px}
 .app b{font-size:15px}
 .app small{color:var(--muted);font-size:12px}
-.app.me{border:2px solid var(--hl);order:-1;grid-column:1/-1}
+.app.me{border:2px solid var(--hl)}
 #a-ios{grid-column:1/-1;min-height:0}
-.app.me::after{content:"Aapke device ke liye";position:absolute;top:10px;right:12px;font-size:11px;font-weight:700;background:var(--hl);color:#111;padding:2px 8px;border-radius:999px}
+.app.me::after{content:"Aapke liye";position:absolute;top:10px;right:12px;font-size:11px;font-weight:700;background:var(--hl);color:#111;padding:2px 8px;border-radius:999px}
 .need{display:none;margin:0 0 14px;padding:12px 14px;border-radius:12px;background:var(--hl);color:#111;font-size:13.5px;font-weight:600}
 .note{margin:12px 0 0;font-size:12.5px;color:var(--muted)}
 .disc{margin-top:30px;padding-top:14px;border-top:1px solid var(--line);text-align:center;font-size:12.5px;font-weight:700;color:var(--disc)}
 @media (max-width:430px){.txt b{font-size:12.5px}.ico{width:36px;height:36px;font-size:20px}.site{gap:10px;padding:12px}}
 @media (max-width:350px){.txt b{font-size:11.5px}}
-@media (min-width:720px){.grid{grid-template-columns:1fr 1fr}.apps{grid-template-columns:repeat(4,1fr)}.app.me{grid-column:auto}#a-ios{grid-column:auto;min-height:96px}h1{font-size:34px}.logo{width:130px;height:130px}}
+@media (min-width:720px){.grid{grid-template-columns:1fr 1fr}.apps{grid-template-columns:repeat(3,1fr)}.app.me{grid-column:auto}#a-ios{grid-column:auto;min-height:96px}h1{font-size:34px}.logo{width:130px;height:130px}}
 
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 a,button{-webkit-tap-highlight-color:transparent}
@@ -119,7 +119,6 @@ a,button{-webkit-tap-highlight-color:transparent}
     <div class="apps">
       <a class="app" id="a-android" href="https://github.com/equitystockmarket555-blip/AIpro-516/releases/latest/download/AIpro516.apk"><span class="ai">&#129302;</span><b>Android</b><small>APK download</small></a>
       <a class="app" id="a-windows" href="https://github.com/equitystockmarket555-blip/AIpro-516/releases/latest/download/AIpro516-Setup.exe"><span class="ai">&#129695;</span><b>Windows</b><small>.exe download</small></a>
-      <a class="app" id="a-mac" href="https://github.com/equitystockmarket555-blip/AIpro-516/releases/latest/download/AIpro516.dmg"><span class="ai">&#127823;</span><b>Mac</b><small>.dmg download</small></a>
       <div class="app" id="a-ios"><span class="ai">&#128241;</span><b>iPhone</b><small>Safari me Share &rarr; Add to Home Screen</small></div>
     </div>
     <p class="note">Website na khule (Google login ki dikkat) to pehle app install karo, ya Incognito / Private window me kholo.</p>
@@ -255,7 +254,6 @@ a,button{-webkit-tap-highlight-color:transparent}
   if (/iphone|ipad|ipod/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1)) id = 'a-ios';
   else if (/android/i.test(ua)) id = 'a-android';
   else if (/windows/i.test(ua)) id = 'a-windows';
-  else if (/macintosh|mac os/i.test(ua)) id = 'a-mac';
   var el = id && document.getElementById(id);
   if (el) el.className += ' me';
   if (/android/i.test(ua) && !window.__aiproStandalone) {
