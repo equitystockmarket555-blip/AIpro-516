@@ -858,9 +858,6 @@ jobs:
           - os: windows-latest
             name: Windows
             args: --win nsis
-          - os: macos-latest
-            name: Mac
-            args: --mac dmg
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -1279,5 +1276,5 @@ jobs:
           ls -R dl
           gh release delete latest --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" || true
           gh release create latest dl/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --latest \
-            --title "AIpro516 - Android, Windows and Mac apps" \
-            --notes "Android: AIpro516.apk | Windows: AIpro516-Setup.exe | Mac: AIpro516.dmg"
+            --title "AIpro516 - Android and Windows apps" \
+            --notes "Android: AIpro516.apk | Windows: AIpro516-Setup.exe"
