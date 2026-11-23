@@ -257,14 +257,14 @@ jobs:
                   root.setOrientation(LinearLayout.VERTICAL);
                   root.setBackgroundColor(bgColor);
 
-                  // ---- upar header: Home + 4 website tab ----
+                  // ---- upar header: Home + 5 website tab ----
                   HorizontalScrollView hs = new HorizontalScrollView(this);
                   hs.setBackgroundColor(headerColor);
                   hs.setHorizontalScrollBarEnabled(false);
                   LinearLayout row = new LinearLayout(this);
                   row.setOrientation(LinearLayout.HORIZONTAL);
                   row.setPadding(dp(8), dp(8), dp(8), dp(8));
-                  for (int i = 0; i < 5; i++) {
+                  for (int i = 0; i < tabViews.length; i++) {
                       final int idx = i - 1;
                       TextView t = new TextView(this);
                       t.setText(i == 0 ? "\uD83C\uDFE0 Home" : TABS[i - 1]);
@@ -605,6 +605,9 @@ jobs:
 
               private void refreshTabs() {
                   for (int i = 0; i < tabViews.length; i++) {
+                      if (tabViews[i] == null) {
+                          continue;
+                      }
                       boolean on = (i - 1) == cur;
                       int col = (i == 0) ? (dark ? 0xFF2E5A44 : 0xFF2E7D57) : COLORS[i - 1];
                       GradientDrawable g = new GradientDrawable();
